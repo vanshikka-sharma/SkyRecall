@@ -19,14 +19,14 @@ export default function LoginPage() {
     try {
       const { data } = await api.post('/auth/login/', form);
 
-      localStorage.setItem("access", data.tokens.access);
-      localStorage.setItem("refresh", data.tokens.refresh);
-      
+      // Store tokens and user properly
       login(data.user, data.tokens);
+      
       toast.success(data.message);
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Login failed');
+      const errorMsg = err.response?.data?.error || err.response?.data?.non_field_errors?.[0] || 'Login failed';
+      toast.error(errorMsg);
     } finally { setLoading(false); }
   };
 

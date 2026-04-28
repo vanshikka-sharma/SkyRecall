@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import api from '../api';
@@ -6,6 +7,20 @@ import { useAuth } from '../context/AuthContext';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  // Handle logout with token blacklist
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout/', {
+        refresh: localStorage.getItem("refresh")
+      });
+    } catch (err) {
+      // Ignore logout errors - just clear local storage
+    }
+    logout();
+    navigate('/login');
+  };
   const [tab, setTab] = useState('gallery');
   const [photos, setPhotos] = useState([]);
   const [results, setResults] = useState(null);
@@ -100,8 +115,10 @@ export default function DashboardPage() {
         {items.map(photo => (
           <div className="photo-card" key={photo.id} onClick={() => setLightbox(photo)}>
             <button className="photo-delete-btn" onClick={(e) => deletePhoto(photo.id, e)}>✕</button>
-            {showScore && photo.score && (
-              <div className="photo-card-score">{Math.round(photo.score * 100)}%</div>
+            {showScore && photo.score !== undefined && photo.score !== null && (
+              <div className="photo-card-score">
+                {Math.round(photo.score * 100)}%
+              </div>
             )}
             <img src={photo.image_url} alt={photo.title} loading="lazy" />
             <div className="photo-card-body">
@@ -128,7 +145,7 @@ export default function DashboardPage() {
             <div className="user-avatar">{initials}</div>
             {displayName}
           </div>
-          <button className="btn-logout" onClick={logout}>Sign out</button>
+          <button className="btn-logout" onClick={handleLogout}>Sign out</button>
         </div>
       </div>
 

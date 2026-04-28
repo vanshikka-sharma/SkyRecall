@@ -40,27 +40,52 @@ export default function RegisterPage() {
     if (form.password !== form.password2)
       return toast.error('Passwords do not match');
 
+    if (!form.username || !form.email || !form.password)
+      return toast.error('All fields are required');
+
     setLoading(true);
 
     try {
-      const res = await api.post('/auth/register/', form);
+      const res = await api.post('/auth/register/', {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        first_name: form.first_name,
+        last_name: form.last_name,
+      });
 
-      console.log("SUCCESS:", res.data); // ✅ correct
-
+      // Store tokens and user properly
       login(res.data.user, res.data.tokens);
 
-      toast.success('Account created!');
+      toast.success('Account created! Welcome to SkyRecall 🎉');
       navigate('/dashboard');
 
     } catch (err) {
       console.log("ERROR:", err.response?.data);
-      console.log("NETWORK ERROR:", err);
-
-      toast.error('Registration failed');
+      
+      // Handle validation errors properly
+      const errData = err.response?.data;
+      if (errData) {
+        // Flatten all error messages
+        const messages = [];
+        for (const [key, value] of Object.entries(errData)) {
+          if (Array.isArray(value)) {
+            messages.push(...value);
+          } else if (typeof value === 'string') {
+            messages.push(value);
+          }
+        }
+        if (messages.length > 0) {
+          messages.forEach(m => toast.error(m));
+        } else {
+          toast.error('Registration failed');
+        }
+      } else {
+        toast.error('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
-    console.log("FINAL FORM:", form);   ////////
   };
 
   return (

@@ -147,12 +147,14 @@ class PhotoUploadView(APIView):
 
                 # Generate CLIP embedding
                 try:
-                    image_path = os.path.join(settings.MEDIA_ROOT, photo.image.name)
-
+                    image_path = photo.image.path
+                    logger.info(f"Generating embedding for: {image_path}")
+                    
                     # ONLY run if ML is working
-                    embedding = ml_service.encode_image(photo.image.path)
+                    embedding = ml_service.encode_image(image_path)
                     photo.set_embedding(embedding)
                     photo.save()
+                    logger.info(f"Embedding generated for photo {photo.id}")
 
                 except Exception as e:
                     logger.error(f"Embedding failed (IGNORED): {e}")
@@ -217,20 +219,40 @@ class SearchView(APIView):
             })
 
         # Prepare data for search
-        photos_data = [
-            {'id': p.id, 'embedding': p.get_embedding()}
-            for p in user_photos
-        ]
+        photos_data = []
+        for photo in user_photos:
+            try:
+                embedding = photo.get_embedding()
+            except Exception:
+                logger.warning("Skipping photo %s due to invalid embedding JSON.", photo.id)
+                continue
+
+            if not embedding:
+                continue
+
+            photos_data.append({
+                'id': photo.id,
+                'embedding': embedding,
+                'title': photo.title or ''
+            })
+
+        if not photos_data:
+            return Response({
+                'query': query,
+                'results': [],
+                'count': 0,
+                'message': 'No valid indexed photos found. Please re-upload affected photos.'
+            })
 
         # Run semantic search
         try:
             search_results = ml_service.search_photos(query, photos_data)
         except Exception as e:
-            logger.error(f"Search failed: {e}")
-            return Response(
-                {'error': 'Search engine error. Please try again.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.exception("Search failed for query '%s'", query)
+            error_payload = {'error': 'Search engine error. Please try again.'}
+            if settings.DEBUG:
+                error_payload['details'] = str(e)
+            return Response(error_payload, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Fetch matched photos in order
         result_ids = [r['id'] for r in search_results]
